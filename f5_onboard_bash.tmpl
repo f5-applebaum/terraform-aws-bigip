@@ -1,0 +1,91 @@
+#!/bin/bash -x
+
+# Send output to log file and serial console
+mkdir -p  /var/log/cloud /config/cloud /var/config/rest/downloads
+LOG_FILE=${onboard_log}
+[[ ! -f $LOG_FILE ]] && touch $LOG_FILE || { echo "Run Only Once. Exiting"; exit; }
+npipe=/tmp/$$.tmp
+trap "rm -f $npipe" EXIT
+mknod $npipe p
+tee <$npipe -a $LOG_FILE /dev/ttyS0 &
+exec 1>&-
+exec 1>$npipe
+exec 2>&1
+
+### write_files:
+# Download or Render BIG-IP Runtime Init Config 
+cat << 'EOF' > /config/cloud/runtime-init-conf.yaml
+runtime_parameters:
+  - name: ADMIN_PASS
+    type: secret
+    secretProvider:
+       type: SecretManager
+       environment: aws
+       version: AWSCURRENT
+       secretId: ${secret_id}
+  - name: HOST_NAME
+    type: metadata
+    metadataProvider:
+      environment: aws
+      type: compute
+      field: hostname
+pre_onboard_enabled:
+  - name: provision_rest
+    type: inline
+    commands:
+      - /usr/bin/setdb provision.extramb 500
+      - /usr/bin/setdb restjavad.useextramb true
+      - /usr/bin/setdb setup.run false
+extension_packages:
+    install_operations:
+        - extensionType: do
+          extensionVersion: 1.8.0
+          extensionUrl: ${DO_URL}
+        - extensionType: as3
+          extensionVersion: 3.14.0
+          extensionUrl: ${AS3_URL}
+        - extensionType: ts
+          extensionVersion: 1.8.0
+          extensionUrl: ${TS_URL}
+extension_services:
+  service_operations:
+  - extensionType: do
+    type: inline
+    value:
+      Common:
+        class: Tenant
+        ${bigip_username}:
+            class: User
+            userType: regular
+            password: "{{{ ADMIN_PASS }}}"
+            partitionAccess:
+               all-partitions: 
+                  role: admin
+            shell: bash        
+        mySystem:
+          class: System
+          hostname: "{{ HOST_NAME }}"
+        dbvars:
+          class: DbVariables
+          provision.extramb: 500
+          restjavad.useextramb: true
+          ui.advisory.enabled: true
+          ui.advisory.color: blue
+          ui.advisory.text: "Provisioned via DO"
+      async: true
+      class: Device
+      label: myBIG-IPdeclarationfordeclarativeonboarding
+      schemaVersion: 1.0.0
+post_onboard_enabled: []
+EOF
+
+### runcmd:
+# Download
+PACKAGE_URL='${RI_URL}'
+for i in {1..30}; do
+    curl -fv --retry 1 --connect-timeout 5 -L "$${PACKAGE_URL}" -o "/var/config/rest/downloads/$${PACKAGE_URL##*/}" && break || sleep 10
+done
+# Install
+bash /var/config/rest/downloads/$${PACKAGE_URL##*/} -- '--cloud aws'
+# Run
+f5-bigip-runtime-init --config-file /config/cloud/runtime-init-conf.yaml

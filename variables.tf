@@ -7,7 +7,7 @@ variable "prefix" {
 variable "f5_ami_search_name" {
   description = "BIG-IP AMI name to search for"
   type        = string
-  default     = "F5 Networks BIGIP-14.* PAYG - Best 200Mbps*"
+  default     = "F5 BIGIP-14.1.2.6* PAYG-Best 25Mbps*"
 }
 
 variable "f5_instance_count" {
@@ -75,11 +75,23 @@ variable "private_subnet_security_group_ids" {
   default     = []
 }
 
+variable f5_username {
+  description = "The admin username of the F5 Bigip that will be deployed"
+  default     = "bigipuser"
+}
+
 variable "aws_secretmanager_secret_id" {
   description = "AWS Secret Manager Secret ID that stores the BIG-IP password"
   type        = string
 }
 
+## Please check and update the latest RUNTIME-INIT URL from https://github.com/f5networks/f5-bigip-runtime-init/releases/latest
+# always point to a specific version in order to avoid inadvertent configuration inconsistency
+variable RI_URL {
+  description = "URL to download the BIG-IP Runtime Init Package"
+  type        = string
+  default     = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/1.1.0/f5-bigip-runtime-init-1.1.0-1.gz.run"
+}
 
 ## Please check and update the latest DO URL from https://github.com/F5Networks/f5-declarative-onboarding/releases
 # always point to a specific version in order to avoid inadvertent configuration inconsistency
