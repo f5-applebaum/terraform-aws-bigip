@@ -10,18 +10,6 @@ variable "f5_ami_search_name" {
   default     = "F5 BIGIP-14.1.2.6* PAYG-Best 25Mbps*"
 }
 
-variable "f5_instance_count" {
-  description = "Number of BIG-IPs to deploy"
-  type        = number
-  default     = 1
-}
-
-variable "application_endpoint_count" {
-  description = "number of public application addresses to assign"
-  type        = number
-  default     = 2
-}
-
 variable "ec2_instance_type" {
   description = "AWS EC2 instance type"
   type        = string
@@ -39,38 +27,8 @@ variable "vpc_public_subnet_ids" {
   default     = []
 }
 
-variable "vpc_private_subnet_ids" {
-  description = "AWS VPC Subnet id for the private subnet"
-  type        = list
-  default     = []
-}
-
-variable "vpc_mgmt_subnet_ids" {
-  description = "AWS VPC Subnet id for the management subnet"
-  type        = list
-  default     = []
-}
-
-variable "mgmt_eip" {
-  description = "Enable an Elastic IP address on the management interface"
-  type        = bool
-  default     = true
-}
-
-variable "mgmt_subnet_security_group_ids" {
-  description = "AWS Security Group ID for BIG-IP management interface"
-  type        = list
-  default     = []
-}
-
 variable "public_subnet_security_group_ids" {
   description = "AWS Security Group ID for BIG-IP public interface"
-  type        = list
-  default     = []
-}
-
-variable "private_subnet_security_group_ids" {
-  description = "AWS Security Group ID for BIG-IP private interface"
   type        = list
   default     = []
 }
@@ -90,7 +48,7 @@ variable "aws_secretmanager_secret_id" {
 variable RI_URL {
   description = "URL to download the BIG-IP Runtime Init Package"
   type        = string
-  default     = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/1.1.0/f5-bigip-runtime-init-1.1.0-1.gz.run"
+  default     = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/1.2.0/f5-bigip-runtime-init-1.2.0-1.gz.run"
 }
 
 ## Please check and update the latest DO URL from https://github.com/F5Networks/f5-declarative-onboarding/releases
@@ -126,4 +84,47 @@ variable onboard_log {
   description = "Directory on the BIG-IP to store the cloud-init logs"
   type        = string
   default     = "/var/log/startup-script.log"
+}
+
+# Autoscale
+
+variable region { 
+  description = "aws region"
+  type        = string
+  default     = "us-west-2" 
+}
+
+variable azs { 
+  description = "Autoscale Min Number"
+  type        = string
+  default     = "us-west-2a,us-west-2b"
+}
+
+variable scale_min  { 
+  description = "Autoscale Min Number"
+  type        = number
+  default     = 1 
+}
+
+variable scale_max      {
+  description = "Autoscale Max Number"
+  type        = number 
+  default     = 3
+}
+
+variable scale_desired  {
+  description = "Autoscale Desired Number"
+  type        = number
+  default     = 1 
+}
+
+variable create_management_public_ip  {
+  description = "Autoscale Desired Number"
+  type        = bool
+  default     = true
+}
+
+variable account_id  {
+  description = "Accound ID used for Secret Role"
+  type        = string
 }

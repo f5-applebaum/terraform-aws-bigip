@@ -18,91 +18,14 @@ data "aws_ami" "f5_ami" {
   }
 }
 
-# 
-# Create Management Network Interfaces
-#
-resource "aws_network_interface" "mgmt" {
-  count           = length(var.vpc_mgmt_subnet_ids)
-  subnet_id       = var.vpc_mgmt_subnet_ids[count.index]
-  security_groups = var.mgmt_subnet_security_group_ids
-}
-
-#
-# add an elastic IP to the BIG-IP management interface
-#
-resource "aws_eip" "mgmt" {
-  count             = var.mgmt_eip ? length(var.vpc_mgmt_subnet_ids) : 0
-  network_interface = aws_network_interface.mgmt[count.index].id
-  vpc               = true
-}
-
-# 
-# Create Public Network Interfaces
-#
-resource "aws_network_interface" "public" {
-  count             = length(var.vpc_public_subnet_ids)
-  subnet_id         = var.vpc_public_subnet_ids[count.index]
-  security_groups   = var.public_subnet_security_group_ids
-  private_ips_count = var.application_endpoint_count
-}
-
-# 
-# Create Private Network Interfaces
-#
-resource "aws_network_interface" "private" {
-  count           = length(var.vpc_private_subnet_ids)
-  subnet_id       = var.vpc_private_subnet_ids[count.index]
-  security_groups = var.private_subnet_security_group_ids
-}
-
-#
-# Deploy BIG-IP
-#
-resource "aws_instance" "f5_bigip" {
-  # determine the number of BIG-IPs to deploy
-  count                = var.f5_instance_count
-  instance_type        = var.ec2_instance_type
-  ami                  = data.aws_ami.f5_ami.id
+resource "aws_launch_configuration" "proxy_lc" {
+  name_prefix   = "${var.prefix}-proxy-lc-"
+  key_name      = var.ec2_key_name
+  image_id      = data.aws_ami.f5_ami.id
+  instance_type = var.ec2_instance_type
+  associate_public_ip_address = var.create_management_public_ip
+  security_groups = var.public_subnet_security_group_ids
   iam_instance_profile = aws_iam_instance_profile.bigip_profile.name
-
-  key_name = var.ec2_key_name
-
-  root_block_device {
-    delete_on_termination = true
-  }
-
-  # set the mgmt interface 
-  dynamic "network_interface" {
-    for_each = toset([aws_network_interface.mgmt[count.index].id])
-
-    content {
-      network_interface_id = network_interface.value
-      device_index         = 0
-    }
-  }
-
-  # set the public interface only if an interface is defined
-  dynamic "network_interface" {
-    for_each = length(aws_network_interface.public) > count.index ? toset([aws_network_interface.public[count.index].id]) : toset([])
-
-    content {
-      network_interface_id = network_interface.value
-      device_index         = 1
-    }
-  }
-
-
-  # set the private interface only if an interface is defined
-  dynamic "network_interface" {
-    for_each = length(aws_network_interface.private) > count.index ? toset([aws_network_interface.private[count.index].id]) : toset([])
-
-    content {
-      network_interface_id = network_interface.value
-      device_index         = 2
-    }
-  }
-
-  # build user_data file from template
   user_data = templatefile(
     "${path.module}/f5_onboard.tmpl",
     {
@@ -117,9 +40,46 @@ resource "aws_instance" "f5_bigip" {
     }
   )
 
-  depends_on = [aws_eip.mgmt]
-
-  tags = {
-    Name = format("%s-%d", var.prefix, count.index)
+  lifecycle {
+    create_before_destroy = true
   }
+}
+
+# https://medium.com/@endofcake/using-terraform-for-zero-downtime-updates-of-an-auto-scaling-group-in-aws-60faca582664
+
+resource "aws_autoscaling_group" "proxy_asg" {
+  #name                     = "${var.prefix}-proxy-asg"
+  name                      = aws_launch_configuration.proxy_lc.name
+  vpc_zone_identifier       = var.vpc_public_subnet_ids
+  #availability_zones        = ["us-west-2a","us-west-2b"]
+  max_size                  = var.scale_max
+  min_size                  = var.scale_min
+  desired_capacity          = var.scale_desired
+  health_check_grace_period = 300
+  health_check_type         = "EC2"
+  force_delete              = true
+  launch_configuration      = aws_launch_configuration.proxy_lc.name
+  lifecycle {
+    create_before_destroy = true
+  }
+  tag {
+    key = "Name"
+    value = "${var.prefix}-proxy-asg"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key = "environment"
+    value = var.prefix
+    propagate_at_launch = true
+  }
+
+}
+
+resource "aws_autoscaling_policy" "proxy_asg_policy" {
+  name                   = "${var.prefix}-proxy-asg-policy"
+  scaling_adjustment     = 2
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.proxy_asg.name
 }

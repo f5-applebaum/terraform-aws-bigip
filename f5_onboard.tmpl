@@ -20,6 +20,10 @@ write_files:
             environment: aws
             type: compute
             field: hostname
+        - name: REGION
+          type: url
+          value: http://169.254.169.254/latest/dynamic/instance-identity/document
+          query: region
       pre_onboard_enabled:
         - name: provision_rest
           type: inline
@@ -56,6 +60,19 @@ write_files:
               mySystem:
                 class: System
                 hostname: "{{ HOST_NAME }}"
+              myDns:
+                class: DNS
+                nameServers:
+                - 8.8.8.8
+              myNtp:
+                class: NTP
+                servers:
+                - 0.pool.ntp.org
+                timezone: UTC
+              myProvisioning:
+                asm: nominal
+                class: Provision
+                ltm: nominal
               dbvars:
                 class: DbVariables
                 provision.extramb: 500
@@ -67,6 +84,75 @@ write_files:
             class: Device
             label: myBIG-IPdeclarationfordeclarativeonboarding
             schemaVersion: 1.0.0
+        - extensionType: as3
+          type: inline
+          value:
+            remark: ASM_VS1
+            schemaVersion: 3.0.0
+            label: ASM_VS1
+            class: ADC
+            Tenant_1:
+              class: Tenant
+              Shared:
+                class: Application
+                template: shared
+                shared_pool:
+                  class: Pool
+                  remark: Service 1 shared pool
+                  monitors:
+                  - http
+                  members:
+                  - servicePort: 80
+                    addressDiscovery: aws
+                    region: '{{{ REGION }}}'
+                    updateInterval: 20
+                    tagKey: aws:cloudformation:logical-id
+                    tagValue: appAutoscaleGroup
+                    addressRealm: private
+              HTTP_Service:
+                template: http
+                class: Application
+                serviceMain:
+                  class: Service_HTTP
+                  virtualAddresses:
+                  - 0.0.0.0
+                  snat: auto
+                  policyWAF:
+                    use: WAFPolicy
+                  pool: "/Tenant_1/Shared/shared_pool"
+                WAFPolicy:
+                  ignoreChanges: true
+                  url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
+                  class: WAF_Policy
+              HTTPS_Service:
+                template: https
+                class: Application
+                serviceMain:
+                  virtualAddresses:
+                  - 0.0.0.0
+                  snat: auto
+                  policyWAF:
+                    use: WAFPolicy
+                  pool: "/Tenant_1/Shared/shared_pool"
+                  serverTLS:
+                    bigip: "/Common/clientssl"
+                  redirect80: false
+                  class: Service_HTTPS
+                WAFPolicy:
+                  ignoreChanges: true
+                  url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
+                  class: WAF_Policy
+        - extensionType: ts
+          type: inline
+          value:
+            class: Telemetry
+            My_System:
+              class: Telemetry_System
+              systemPoller:
+                interval: 60
+            My_Listener:
+              class: Telemetry_Listener
+              port: 6514
       post_onboard_enabled: []
 
   - path: /config/cloud/startup-script.sh
