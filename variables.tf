@@ -28,7 +28,7 @@ variable "ec2_key_name" {
 }
 
 variable "subnet_security_group_ids" {
-  description = "AWS Security Group ID for BIG-IP interface"
+  description = "AWS Security Group IDs for BIG-IP interfaces"
   type        = list
   default     = []
 }

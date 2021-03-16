@@ -17,22 +17,6 @@ This modules supports Terraform 0.12 and higher
 We have provided some common deployment examples below.  However, if you would like to see full end-to-end examples with the creation of all required objects check out the [examples](https://github.com/f5devcentral/terraform-aws-bigip/tree/master/examples) folder in the [GitHub repository](https://github.com/f5devcentral/terraform-aws-bigip/).
 
 
-### Example 1-NIC Deployment PAYG
-```hcl
-module bigip {
-  source = "f5devcentral/bigip/aws"
-  version = "0.1.2"
-
-  prefix            = "bigip"
-  f5_instance_count = 1
-  ec2_key_name      = "my-key"
-  aws_secretmanager_secret_id = "my_bigip_password"
-  public_subnet_security_group_ids = [sg-01234567890abcdef]
-  vpc_public_subnet_ids = [subnet-01234567890abcdef]
-  f5_ami_search_name = "F5 Networks BIGIP-14.0.1-0.0.14* PAYG - Best 200Mbps*"
-}
-``
-
 ## Finding AWS Machine Images (AMI)
 If there is a specific F5 BIG-IP AMI you would like to use you can update the f5_ami_search_name variable to reflect the AMI name or name pattern you are looking for.
 

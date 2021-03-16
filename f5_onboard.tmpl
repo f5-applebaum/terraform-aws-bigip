@@ -1,8 +1,9 @@
-#!/bin/bash -x
+#!/bin/bash
+# SUMMARY: This is an example for how to perform a NIC Swap for AWS using maximal runtime-init config
 
-# Send output to log file and serial console
 mkdir -p  /var/log/cloud /config/cloud /var/lib/cloud/icontrollx_installs /var/config/rest/downloads
-LOG_FILE=/var/log/cloud/startup-script.log
+
+LOG_FILE=/var/log/cloud/startup-script-pre-nic-swap.log
 [[ ! -f $LOG_FILE ]] && touch $LOG_FILE || { echo "Run Only Once. Exiting"; exit; }
 npipe=/tmp/$$.tmp
 trap "rm -f $npipe" EXIT
@@ -12,12 +13,64 @@ exec 1>&-
 exec 1>$npipe
 exec 2>&1
 
-# Download or Render BIG-IP Runtime Init Config 
+cat << 'EOF' > /config/first-run.sh
+#!/bin/bash
+
+if [ ! -f /config/first_run_flag ]; then
+
+    touch /config/first_run_flag
+    chmod +w /config/startup
+    chmod +x /config/startup-script.sh
+    echo "/config/startup-script.sh" >> /config/startup
+
+    /usr/bin/setdb provision.managementeth eth1
+    /usr/bin/setdb provision.extramb 1000
+    /usr/bin/setdb restjavad.useextramb true
+    reboot
+fi
+EOF
+
 cat << 'EOF' > /config/cloud/runtime-init.conf
 ${RI_CONFIG}
 EOF
 
-### runcmd:
+
+# Run startup-script post nic-swap
+cat << 'EOF' > /config/startup-script.sh
+#!/bin/bash
+
+LOG_FILE=/var/log/cloud/startup-script-post-swap-nic.log
+[[ ! -f $LOG_FILE ]] && touch $LOG_FILE || { echo "Run Only Once. Exiting"; exit; }
+npipe=/tmp/$$.tmp
+trap "rm -f $npipe" EXIT
+mknod $npipe p
+tee <$npipe -a $LOG_FILE /dev/ttyS0 &
+exec 1>&-
+exec 1>$npipe
+exec 2>&1
+
+# Need use info from DHCP for TMM instead of MGMT
+IP=$(egrep fixed-address /var/lib/dhclient/dhclient.leases | head -1 | grep -oE '[^ ]+$' | tr -d ';' )
+MASK=$(egrep subnet-mask /var/lib/dhclient/dhclient.leases | head -1 | grep -oE '[^ ]+$' | tr -d ';' )
+GW=$(egrep routers /var/lib/dhclient/dhclient.leases | head -1 | grep -oE '[^ ]+$' | tr -d ';' )
+PREFIX=$(ipcalc -p $IP $MASK | sed -n 's/^PREFIX=\(.*\)/\1/p' )
+DNS_SERVERS=$(egrep domain-name-servers /var/lib/dhclient/dhclient.leases | head -1 | grep -oE '[^ ]+$' | tr -d ';' )
+
+source /usr/lib/bigstart/bigip-ready-functions
+wait_bigip_ready
+# Wait until a little more until dhcp/chmand is finished re-configuring MGMT IP w/ "chmand[4267]: 012a0003:3: Mgmt Operation:0 Dest:0.0.0.0"
+sleep 15
+tmsh modify sys global-settings mgmt-dhcp disabled
+tmsh delete sys management-route all
+tmsh delete sys management-ip all
+tmsh create net vlan internal interfaces add { 1.0 } mtu 1460
+tmsh create net self self_internal address $IP/$PREFIX vlan internal allow-service default
+tmsh create net route default network default gw $GW mtu 1460
+tmsh create net route aws_metadata network 169.254.169.254/32 gw $GW
+tmsh modify sys dns name-servers add { $DNS_SERVERS }
+tmsh modify sys httpd ssl-port 8443
+tmsh save /sys config
+
 # Download RUNTIME_INIT Package
 PACKAGE_URL='${RI_URL}'
 for i in {1..30}; do
@@ -27,3 +80,8 @@ done
 bash /var/config/rest/downloads/$${PACKAGE_URL##*/} -- '--cloud aws'
 # Run
 f5-bigip-runtime-init --config-file /config/cloud/runtime-init.conf
+
+EOF
+
+chmod 755 /config/first-run.sh
+nohup /config/first-run.sh &

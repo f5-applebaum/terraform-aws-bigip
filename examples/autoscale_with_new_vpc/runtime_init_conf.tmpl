@@ -1,134 +1,3 @@
-pre_onboard_enabled:
-  - name: provision_rest
-    type: inline
-    commands:
-      - /usr/bin/setdb provision.extramb 500
-      - /usr/bin/setdb restjavad.useextramb true
-      - /usr/bin/setdb setup.run false
-bigip_ready_enabled: []
-extension_packages:
-    install_operations:
-        - extensionType: do
-          extensionVersion: 1.8.0
-          extensionUrl: https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.8.0/f5-declarative-onboarding-1.8.0-2.noarch.rpm
-        - extensionType: as3
-          extensionVersion: 3.14.0
-          extensionUrl: https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.14.0/f5-appsvcs-3.14.0-4.noarch.rpm
-        - extensionType: ts
-          extensionVersion: 1.8.0
-          extensionUrl: https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.8.0/f5-telemetry-1.8.0-1.noarch.rpm
-extension_services:
-  service_operations:
-  - extensionType: do
-    type: inline
-    value:
-      Common:
-        class: Tenant
-        ${bigip_username}:
-            class: User
-            userType: regular
-            password: "{{{ ADMIN_PASS }}}"
-            partitionAccess:
-              all-partitions: 
-                  role: admin
-            shell: bash        
-        mySystem:
-          class: System
-          hostname: "{{ HOST_NAME }}"
-        myDns:
-          class: DNS
-          nameServers:
-          - 8.8.8.8
-        myNtp:
-          class: NTP
-          servers:
-          - 0.pool.ntp.org
-          timezone: UTC
-        myProvisioning:
-          asm: nominal
-          class: Provision
-          ltm: nominal
-        dbvars:
-          class: DbVariables
-          provision.extramb: 500
-          restjavad.useextramb: true
-          ui.advisory.enabled: true
-          ui.advisory.color: blue
-          ui.advisory.text: "Provisioned via DO"
-      async: true
-      class: Device
-      label: myBIG-IPdeclarationfordeclarativeonboarding
-      schemaVersion: 1.0.0
-  - extensionType: as3
-    type: inline
-    value:
-      remark: ASM_VS1
-      schemaVersion: 3.0.0
-      label: ASM_VS1
-      class: ADC
-      Tenant_1:
-        class: Tenant
-        Shared:
-          class: Application
-          template: shared
-          shared_pool:
-            class: Pool
-            remark: Service 1 shared pool
-            monitors:
-            - http
-            members:
-            - servicePort: 80
-              addressDiscovery: aws
-              region: '{{{ REGION }}}'
-              updateInterval: 20
-              tagKey: Application
-              tagValue: appAutoscaleGroup
-              addressRealm: private
-        HTTP_Service:
-          template: http
-          class: Application
-          serviceMain:
-            class: Service_HTTP
-            virtualAddresses:
-            - 0.0.0.0
-            snat: auto
-            policyWAF:
-              use: WAFPolicy
-            pool: "/Tenant_1/Shared/shared_pool"
-          WAFPolicy:
-            ignoreChanges: true
-            url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
-            class: WAF_Policy
-        HTTPS_Service:
-          template: https
-          class: Application
-          serviceMain:
-            virtualAddresses:
-            - 0.0.0.0
-            snat: auto
-            policyWAF:
-              use: WAFPolicy
-            pool: "/Tenant_1/Shared/shared_pool"
-            serverTLS:
-              bigip: "/Common/clientssl"
-            redirect80: false
-            class: Service_HTTPS
-          WAFPolicy:
-            ignoreChanges: true
-            url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
-            class: WAF_Policy
-  - extensionType: ts
-    type: inline
-    value:
-      class: Telemetry
-      My_System:
-        class: Telemetry_System
-        systemPoller:
-          interval: 60
-      My_Listener:
-        class: Telemetry_Listener
-        port: 6514
-post_onboard_enabled: []
 runtime_parameters:
   - name: HOST_NAME
     type: metadata
@@ -140,6 +9,9 @@ runtime_parameters:
     type: url
     value: http://169.254.169.254/latest/dynamic/instance-identity/document
     query: region
+  - name: LOCAL_IPV4_ADDRESS
+    type: url
+    value: http://169.254.169.254/latest/meta-data/local-ipv4
   - name: ADMIN_PASS
     type: secret
     secretProvider:
@@ -147,3 +19,128 @@ runtime_parameters:
       environment: aws
       version: AWSCURRENT
       secretId: ${secret_id}
+extension_packages: 
+  install_operations:
+    - extensionType: do
+      extensionVersion: v1.19.0
+      extensionUrl: https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.19.0/f5-declarative-onboarding-1.19.0-2.noarch.rpm
+    - extensionType: as3
+      extensionVersion: v3.26.0
+      extensionUrl: https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.26.0/f5-appsvcs-3.26.0-5.noarch.rpm
+    - extensionType: ts
+      extensionVersion: v1.18.0
+      extensionUrl: https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.18.0/f5-telemetry-1.18.0-2.noarch.rpm
+extension_services: 
+  service_operations:
+    - extensionType: do
+      type: inline
+      value:
+        schemaVersion: 1.0.0
+        class: Device
+        async: true
+        label: Standalone BIG-IP declaration for Declarative Onboarding with PAYG license
+        Common:
+          class: Tenant
+          dbVars:
+            class: DbVariables
+            restjavad.useextramb: true
+            provision.extramb: 1000
+            config.allow.rfc3927: enable
+            ui.advisory.enabled: true
+            ui.advisory.color: blue
+            ui.advisory.text: "BIG-IP Autoscale"
+          myNtp:
+            class: NTP
+            servers:
+              - 0.pool.ntp.org
+            timezone: UTC
+          myProvisioning:
+            asm: nominal
+            class: Provision
+            ltm: nominal
+          mySystem:
+            autoPhonehome: true
+            class: System
+            hostname: '{{{HOST_NAME}}}'
+          ${bigip_username}:
+              class: User
+              userType: regular
+              password: "{{{ ADMIN_PASS }}}"
+              partitionAccess:
+                all-partitions: 
+                    role: admin
+              shell: bash       
+    - extensionType: as3
+      type: inline
+      value:
+        remark: ASM_VS1
+        schemaVersion: 3.0.0
+        label: ASM_VS1
+        class: ADC
+        Tenant_1:
+          class: Tenant
+          Shared:
+            class: Application
+            template: shared
+            shared_pool:
+              class: Pool
+              remark: Service 1 shared pool
+              monitors:
+              - http
+              members:
+              - servicePort: 80
+                addressDiscovery: aws
+                region: '{{{ REGION }}}'
+                updateInterval: 20
+                tagKey: Application
+                tagValue: appAutoscaleGroup
+                addressRealm: private
+          HTTP_Service:
+            template: http
+            class: Application
+            serviceMain:
+              class: Service_HTTP
+              virtualAddresses:
+              - '{{{ LOCAL_IPV4_ADDRESS }}}'
+              snat: auto
+              policyWAF:
+                use: WAFPolicy
+              pool: "/Tenant_1/Shared/shared_pool"
+            WAFPolicy:
+              ignoreChanges: true
+              url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
+              class: WAF_Policy
+          HTTPS_Service:
+            template: https
+            class: Application
+            serviceMain:
+              virtualAddresses:
+              - '{{{ LOCAL_IPV4_ADDRESS }}}'
+              snat: auto
+              policyWAF:
+                use: WAFPolicy
+              pool: "/Tenant_1/Shared/shared_pool"
+              serverTLS:
+                bigip: "/Common/clientssl"
+              redirect80: false
+              class: Service_HTTPS
+            WAFPolicy:
+              ignoreChanges: true
+              url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
+              class: WAF_Policy
+    - extensionType: ts
+      type: inline
+      value:
+        class: Telemetry
+        My_System:
+          class: Telemetry_System
+          systemPoller:
+            interval: 60
+        My_Listener:
+          class: Telemetry_Listener
+          port: 6514
+post_onboard_enabled:
+  - name: create_misc_routes
+    type: inline
+    commands:
+    - tmsh save sys config
