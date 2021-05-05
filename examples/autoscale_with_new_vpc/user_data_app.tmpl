@@ -1,0 +1,5 @@
+#cloud-config
+runcmd:
+   - yum -y install docker
+   - service docker start
+   - docker run --name f5demo -p 80:80 -p 443:443 -d ${appContainerName}
