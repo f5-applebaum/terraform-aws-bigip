@@ -25,14 +25,15 @@ bigip_ready_enabled: []
 extension_packages:
     install_operations:
         - extensionType: do
-          extensionVersion: 1.8.0
-          extensionUrl: https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.8.0/f5-declarative-onboarding-1.8.0-2.noarch.rpm
+          extensionVersion: 1.23.0
+          extensionHash: 03907f233d3f619b1f5cb1f311f5abdb619ef5cdbe31dcf81aeec6148c2beea9
+          extensionUrl: https://alex-customizations.s3.us-west-2.amazonaws.com/atc/f5-declarative-onboarding-1.23.0-2.noarch.rpm
         - extensionType: as3
-          extensionVersion: 3.14.0
-          extensionUrl: https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.14.0/f5-appsvcs-3.14.0-4.noarch.rpm
+          extensionVersion: 3.26.0
+          extensionHash: b33a96c84b77cff60249b7a53b6de29cc1e932d7d94de80cc77fb69e0b9a45a0
         - extensionType: ts
-          extensionVersion: 1.8.0
-          extensionUrl: https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.8.0/f5-telemetry-1.8.0-1.noarch.rpm
+          extensionVersion: 1.18.0
+          extensionHash: de4c82cafe503e65b751fcacfb2f169912ad5ce1645e13c5135dca972299174a
 extension_services:
   service_operations:
   - extensionType: do
@@ -115,6 +116,7 @@ extension_services:
             ignoreChanges: true
             url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
             class: WAF_Policy
+            enforcementMode: blocking
         HTTPS_Service:
           template: https
           class: Application
@@ -133,6 +135,7 @@ extension_services:
             ignoreChanges: true
             url: https://raw.githubusercontent.com/f5devcentral/f5-asm-policy-templates/master/generic_ready_template/Rapid_Depolyment_Policy_13_1.xml
             class: WAF_Policy
+            enforcementMode: blocking
   - extensionType: ts
     type: inline
     value:

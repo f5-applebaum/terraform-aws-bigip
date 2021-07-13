@@ -60,13 +60,13 @@ variable scale_desired  {
 
 variable f5_username {
   description = "The admin username of the F5 Bigip that will be deployed"
-  default     = "bigipuser"
+  default     = "admin"
 }
 
 variable RI_URL {
   description = "URL to download the BIG-IP Runtime Init Package"
   type        = string
-  default     = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/1.2.0/f5-bigip-runtime-init-1.2.0-1.gz.run"
+  default     = "https://cdn.f5.com/product/cloudsolutions/f5-bigip-runtime-init/v1.2.1/dist/f5-bigip-runtime-init-1.2.1-1.gz.run"
 }
 
 # variable "aws_secretmanager_secret_id" {
